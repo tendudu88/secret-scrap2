@@ -9,34 +9,63 @@
 #
 # To enable this hook, rename this file to "prepare-commit-msg".
 
-# This hook includes three examples. The first one removes the
-# "# Please enter the commit message..." help message.
-#
-# The second includes the output of "git diff --name-status -r"
-# into the message, just before the "git status" output.  It is
-# commented because it doesn't cope with --amend or with squashed
-# commits.
-#
-# The third example adds a Signed-off-by line to the message, that can
-# still be edited.  This is rarely a good idea.
+# This hook from __future__ import annotations
 
-COMMIT_MSG_FILE=$1
-COMMIT_SOURCE=$2
-SHA1=$3
+import re
+from typing import Any
 
-/usr/bin/perl -i.bak -ne 'print unless(m/^. Please enter the commit message/..m/^#$/)' "$COMMIT_MSG_FILE"
+from pydantic import Field, field_serializer
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# case "$COMMIT_SOURCE,$SHA1" in
-#  ,|template,)
-#    /usr/bin/perl -i.bak -pe '
-#       print "\n" . `git diff --cached --name-status -r`
-# 	 if /^#/ && $first++ == 0' "$COMMIT_MSG_FILE" ;;
-#  *) ;;
-# esac
+from . import __version__
 
-# SOB=$(git var GIT_COMMITTER_IDENT | sed -n 's/^\(.*>\).*$/Signed-off-by: \1/p')
-# git interpret-trailers --in-place --trailer "$SOB" "$COMMIT_MSG_FILE"
-# if test -z "$COMMIT_SOURCE"
-# then
-#   /usr/bin/perl -i.bak -pe 'print "\n" if !$first_line++' "$COMMIT_MSG_FILE"
-# fi
+
+class SearchConfig(BaseSettings):
+    name: str
+    url: str
+    recursive: bool = True
+
+
+class FilterConfig(BaseSettings):
+    exclude_topads: bool = True
+    exclude_patterns: list[re.Pattern[str]] = Field(default_factory=list)
+    price_min: int | None = None
+    price_max: int | None = None
+
+    @field_serializer("exclude_patterns")
+    def serialize_exclude_patterns(self, patterns: list[re.Pattern[str]], _info: Any) -> list[str]:
+        return [p.pattern for p in patterns]
+
+
+class NotificationsConfig(BaseSettings):
+    pushover: dict | None = None
+    ntfy_sh: dict | None = None
+    telegram: dict | None = None
+
+
+class Config(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="EK_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    filter: FilterConfig = Field(default_factory=FilterConfig)
+    notifications: NotificationsConfig = Field(default_factory=NotificationsConfig)
+    searches: list[SearchConfig] = Field(default_factory=list)
+
+    # Global settings
+    request_delay_min: float = 1.5
+    request_delay_max: float = 4.0
+    request_timeout: int = 30
+
+    # Load balancing and resilience
+    use_global_lock: bool = True
+    lock_timeout: int = 12
+    max_concurrent_pages: int = 5
+    data_store_max_days: int = 7
+    download_images: bool = True
+
+if __name__ == "__main__":
+    print("Config loaded successfully")
