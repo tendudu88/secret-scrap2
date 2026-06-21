@@ -1,13 +1,16 @@
 services:
   - type: web
-    name: ek-scraper-dashboard
-    env: python
-    plan: free
-    buildCommand: uv sync --frozen
-    startCommand: python dashboard.py
+    name: ek-scraper
+    runtime: python
+    buildCommand: |
+      apt-get update && apt-get install -y gcc libxml2-dev libxslt-dev
+      pip install uv
+      uv lock
+      uv sync --frozen --no-dev
+    startCommand: python -m ek_scraper.cli run config.json
     envVars:
-      - key: PYTHONUNBUFFERED
-        value: 1
+      - key: PYTHON_VERSION
+        value: 3.11
 
   - type: worker
     name: scraper-high-freq
