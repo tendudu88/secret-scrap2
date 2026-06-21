@@ -1,0 +1,25 @@
+{
+  "filter": {
+    "exclude_topads": true,
+    "exclude_patterns": ["^\\s*Suche\\s", "Tausch"],
+    "price_min": 400,
+    "price_max": 1500
+  },
+  "notifications": {
+    "ntfy.sh": {
+      "topic": "ek-scraper-deinname-123456",
+      "priority": 3
+    },
+    "telegram": {
+      "bot_token": "DEIN_BOT_TOKEN",
+      "chat_id": "DEINE_CHAT_ID"
+    }
+  },
+  "searches": [
+    {
+      "name": "Wohnungen Altona Hamburg",
+      "url": "https://www.kleinanzeigen.de/s-wohnung-mieten/altona/c203l9497",
+      "recursive": true
+    }
+  ]
+}
