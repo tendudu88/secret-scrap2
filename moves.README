@@ -1,0 +1,4 @@
+# Consolidate modules into src/ek_scraper
+
+# Move root-level modules into src/ek_scraper package
+# Note: This is a virtual commit file used to record operations. Actual file moves were performed by creating new files in src/ek_scraper and removing the originals.
