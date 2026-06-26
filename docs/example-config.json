@@ -1,0 +1,33 @@
+{
+  "searches": [
+    {
+      "name": "Bicycles in Berlin",
+      "url": "https://www.kleinanzeigen.de/s-fahrrad/berlin/k0",
+      "recursive": true
+    },
+    {
+      "name": "Apartments Hamburg 2-3 rooms",
+      "url": "https://www.kleinanzeigen.de/s-zimmer-wohnung-miete/hamburg/k0",
+      "recursive": true
+    }
+  ],
+  "filter": {
+    "exclude_topads": true,
+    "price_min": 50,
+    "price_max": 1000,
+    "exclude_patterns": [
+      "broken",
+      "defekt",
+      "parts only"
+    ]
+  },
+  "notifications": {
+    "telegram": {
+      "bot_token": "YOUR_BOT_TOKEN_HERE",
+      "chat_id": "YOUR_CHAT_ID_HERE"
+    }
+  },
+  "request_delay_min": 2.0,
+  "request_delay_max": 5.0,
+  "request_timeout": 30
+}
