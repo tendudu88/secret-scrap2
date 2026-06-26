@@ -1,3 +1,5 @@
+"""Core scraping logic for kleinanzeigen.de."""
+
 from __future__ import annotations
 
 import asyncio
@@ -8,31 +10,14 @@ from typing import AsyncGenerator
 from urllib.parse import urljoin
 
 import aiohttp
-import bs4
 from bs4 import BeautifulSoup
 
 from .config import Config, FilterConfig, SearchConfig
 from .data_store import AdItem, DataStore
 from .error import ScraperError
 
-
-async def download_image(session: aiohttp.ClientSession, url: str, timeout: int = 15) -> bytes | None:
-    """Download image (thumbnail) and return bytes. Returns None on failure."""
-    if not url:
-        return None
-    try:
-        headers = get_random_headers()
-        async with asyncio.timeout(timeout):
-            async with session.get(url, headers=headers) as resp:
-                if resp.status == 200 and resp.content_type.startswith("image/"):
-                    return await resp.read()
-    except Exception as e:
-        _logger.warning("Failed to download image %s: %s", url, e)
-    return None
-
 _logger = logging.getLogger(__name__)
 
-# Multiple realistic User-Agents for rotation (updated 2026)
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -47,8 +32,9 @@ REFERERS = [
     "https://www.google.com/",
     "https://www.kleinanzeigen.de/",
     "https://duckduckgo.com/",
-    "",  # direct
+    "",
 ]
+
 
 def get_random_headers() -> dict[str, str]:
     """Return randomized headers with rotating User-Agent and Referer."""
@@ -77,17 +63,13 @@ def get_proxy(config: Config) -> str | None:
     return config.proxy
 
 
-class ScraperError(Exception):
-    """Base exception for scraper errors"""
-    pass
-
-
 async def get_soup(
-    session: aiohttp.ClientSession, url: str, timeout: int = 30, proxy: str | None = None
+    session: aiohttp.ClientSession,
+    url: str,
+    timeout: int = 30,
+    proxy: str | None = None,
 ) -> BeautifulSoup:
-    """Fetch page and return BeautifulSoup object with proper error handling.
-    Supports proxy and rotating headers.
-    """
+    """Fetch page and return BeautifulSoup object with proper error handling."""
     headers = get_random_headers()
 
     try:
@@ -122,7 +104,7 @@ def parse_price(price_str: str) -> int | None:
 
 
 def get_pagination_urls(soup: BeautifulSoup, base_url: str) -> list[str]:
-    """Find all pagination links."""
+    """Find all pagination links from search results."""
     urls = []
     for a in soup.select("a.pagination-page, a[href*='page=']"):
         href = a.get("href")
@@ -147,7 +129,9 @@ async def get_ad_items_from_page(
             if not ad_id:
                 continue
 
-            title_el = article.select_one(".text-module-begin a, h2 a, .aditem-main--middle--title a")
+            title_el = article.select_one(
+                ".text-module-begin a, h2 a, .aditem-main--middle--title a"
+            )
             title = title_el.get_text(strip=True) if title_el else "Kein Titel"
 
             desc_el = article.select_one(
@@ -156,13 +140,21 @@ async def get_ad_items_from_page(
             description = desc_el.get_text(strip=True) if desc_el else ""
 
             loc_el = article.select_one('i[class*="icon-pin"], .aditem-main--top--left')
-            location = loc_el.parent.get_text(strip=True) if loc_el and loc_el.parent else "Unbekannt"
+            location = (
+                loc_el.parent.get_text(strip=True)
+                if loc_el and loc_el.parent
+                else "Unbekannt"
+            )
 
-            price_el = article.select_one('p[class*="price"], .aditem-main--middle--price')
+            price_el = article.select_one(
+                'p[class*="price"], .aditem-main--middle--price'
+            )
             price = price_el.get_text(strip=True) if price_el else "Preis auf Anfrage"
 
             img_el = article.select_one(".imagebox, .galleryimage")
-            image_url = img_el.get("data-imgsrc") or img_el.get("src") if img_el else None
+            image_url = (
+                img_el.get("data-imgsrc") or img_el.get("src") if img_el else None
+            )
 
             is_top = bool(article.select_one(".icon-feature-topad, .topad"))
 
@@ -181,20 +173,22 @@ async def get_ad_items_from_page(
             continue
 
 
-async def scrape_search(
-    search: SearchConfig, config: Config
-) -> list[AdItem]:
+async def scrape_search(search: SearchConfig, config: Config) -> list[AdItem]:
     """Scrape all ads for one search (with rate limiting and pagination)."""
     all_ads: list[AdItem] = []
     seen_urls: set[str] = set()
 
     proxy = get_proxy(config)
     if proxy:
-        _logger.info("Using proxy: %s", proxy.split("@")[-1] if "@" in proxy else proxy)
+        _logger.info(
+            "Using proxy: %s", proxy.split("@")[-1] if "@" in proxy else proxy
+        )
 
     async with aiohttp.ClientSession() as session:
         # First page
-        soup = await get_soup(session, search.url, timeout=config.request_timeout, proxy=proxy)
+        soup = await get_soup(
+            session, search.url, timeout=config.request_timeout, proxy=proxy
+        )
         async for ad in get_ad_items_from_page(soup, search.url):
             all_ads.append(ad)
 
@@ -207,11 +201,18 @@ async def scrape_search(
                 seen_urls.add(page_url)
 
                 # Rate limiting - very important!
-                delay = random.uniform(config.request_delay_min, config.request_delay_max)
+                delay = random.uniform(
+                    config.request_delay_min, config.request_delay_max
+                )
                 await asyncio.sleep(delay)
 
                 try:
-                    page_soup = await get_soup(session, page_url, timeout=config.request_timeout, proxy=proxy)
+                    page_soup = await get_soup(
+                        session,
+                        page_url,
+                        timeout=config.request_timeout,
+                        proxy=proxy,
+                    )
                     async for ad in get_ad_items_from_page(page_soup, page_url):
                         all_ads.append(ad)
                 except ScraperError as e:
@@ -223,7 +224,10 @@ async def scrape_search(
 
 
 async def get_filtered_search_result(
-    search: SearchConfig, filter_cfg: FilterConfig, data_store: DataStore, config: Config
+    search: SearchConfig,
+    filter_cfg: FilterConfig,
+    data_store: DataStore,
+    config: Config,
 ) -> list[AdItem]:
     """Return only new, non-excluded ads."""
     all_ads = await scrape_search(search, config)
@@ -242,6 +246,7 @@ async def get_filtered_search_result(
 
 
 def ad_item_is_excluded(ad: AdItem, f: FilterConfig) -> bool:
+    """Check if an AdItem should be excluded based on filters."""
     if f.exclude_topads and ad.is_top_ad:
         return True
 
